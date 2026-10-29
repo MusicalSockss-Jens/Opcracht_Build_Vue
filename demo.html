@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>De Digitale Kamer van Stille Post - Volledige Versie</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background-color: #0B0C0E;
+      font-family: 'Georgia', serif;
+      color: #E5DFD3;
+      user-select: none;
+    }
+
+    #canvas-container {
+      width: 100vw;
+      height: 100vh;
+      display: block;
+    }
+
+    #ui-container {
+      position: absolute;
+      top: 25px;
+      left: 25px;
+      z-index: 10;
+      pointer-events: none;
+      background: rgba(11, 12, 14, 0.85);
+      padding: 18px 24px;
+      border: 1px solid rgba(229, 223, 211, 0.25);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+      backdrop-filter: blur(5px);
+    }
+
+    h1 {
+      margin: 0 0 6px 0;
+      font-size: 1.4rem;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: #E5DFD3;
+    }
+
+    p.subtitle {
+      margin: 0;
+      font-size: 0.95rem;
+      opacity: 0.85;
+      color: #ffd8a8;
+      font-style: italic;
+    }
+
+    #back-btn {
+      position: absolute;
+      top: 25px;
+      right: 25px;
+      z-index: 10;
+      background: #1a1c23;
+      border: 1px solid #E5DFD3;
+      color: #E5DFD3;
+      padding: 12px 24px;
+      cursor: pointer;
+      font-family: serif;
+      font-size: 0.95rem;
+      display: none;
+      transition: all 0.4s ease;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.7);
+    }
+
+    #back-btn:hover {
+      background: #E5DFD3;
+      color: #0B0C0E;
+    }
+  </style>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tween.js/18.6.4/tween.umd.js"></script>
+</head>
+<body>
+
+  <div id="ui-container">
+    <h1>Stille Post</h1>
+    <p class="subtitle" id="instruction">1. Verken de wereldkaart en selecteer een brandende kaars</p>
+  </div>
+
+  <button id="back-btn">← Terug naar Wereldkaart</button>
+  <div id="canvas-container"></div>
+
+  <script>
+    // --- SCÈNE & RENDERER SETUP ---
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0B0C0E);
+
+    const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const initialCamPos = { x: 0, y: 18, z: 20 };
+    camera.position.set(initialCamPos.x, initialCamPos.y, initialCamPos.z);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    container.appendChild(renderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.maxPolarAngle = Math.PI / 2.1;
+
+    // --- BELICHTING ---
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.65);
+    scene.add(ambientLight);
+
+    const mainLight = new THREE.DirectionalLight(0xE5DFD3, 0.9);
+    mainLight.position.set(15, 35, 20);
+    scene.add(mainLight);
+
+    // --- MATERIALEN ---
+    const woodMaterial = new THREE.MeshStandardMaterial({ color: 0x2b2118, roughness: 0.85 });
+    const stoneMaterial = new THREE.MeshStandardMaterial({ color: 0x3d3d3d, roughness: 0.9 });
+    const waxMaterial = new THREE.MeshStandardMaterial({ color: 0xded2b1, roughness: 0.3 });
+    const flameMaterial = new THREE.MeshBasicMaterial({ color: 0xffaa00 });
+
+    // --- WERELDKAART GENERATIE ---
+    function createDetailedMapTexture() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 2048; canvas.height = 1024;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#0B0C0E';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = '#181b22'; ctx.lineWidth = 2;
+      for (let x = 0; x < canvas.width; x += 64) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke(); }
+      for (let y = 0; y < canvas.height; y += 64) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke(); }
+      ctx.fillStyle = '#171c26'; ctx.strokeStyle = '#273042'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.ellipse(1200, 350, 420, 220, -0.1, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(1120, 680, 240, 310, 0.1, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(450, 320, 320, 210, 0.2, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(580, 750, 180, 260, -0.2, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      return new THREE.CanvasTexture(canvas);
+    }
+
+    const mapPlane = new THREE.Mesh(new THREE.PlaneGeometry(36, 22), new THREE.MeshStandardMaterial({ map: createDetailedMapTexture(), roughness: 0.85 }));
+    mapPlane.rotation.x = -Math.PI / 2;
+    scene.add(mapPlane);
+
+    // --- TEKST RENDEREN OP PERKAMENT TEXTUUR ---
+    function createParchmentTexture(cardData, locationName) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 1024; canvas.height = 768;
+      const ctx = canvas.getContext('2d');
+
+      ctx.fillStyle = '#E5DFD3';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = 'rgba(195, 185, 165, 0.3)';
+      ctx.fillRect(0, 0, canvas.width, 40);
+      ctx.fillRect(0, canvas.height - 40, canvas.width, 40);
+      ctx.strokeStyle = '#b5ac96'; ctx.lineWidth = 12;
+      ctx.strokeRect(25, 25, canvas.width - 50, canvas.height - 50);
+
+      ctx.fillStyle = '#1a1a1a';
+      ctx.font = 'bold 38px Georgia';
+      ctx.fillText(`${locationName} - ${cardData.id}`, 65, 100);
+
+      ctx.strokeStyle = '#c5bca6'; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.moveTo(65, 130); ctx.lineTo(canvas.width - 65, 130); ctx.stroke();
+
+      ctx.font = '34px Georgia';
+      ctx.fillStyle = '#222222';
+      const text = `"${cardData.text}"`;
+      const maxWidth = canvas.width - 130;
+      let x = 65, y = 210, lineHeight = 48;
+      const words = text.split(' ');
+      let line = '';
+
+      for (let n = 0; n < words.length; n++) {
+        let testLine = line + words[n] + ' ';
+        if (ctx.measureText(testLine).width > maxWidth && n > 0) {
+          ctx.fillText(line, x, y);
+          line = words[n] + ' ';
+          y += lineHeight;
+        } else {
+          line = testLine;
+        }
+      }
+      ctx.fillText(line, x, y);
+
+      ctx.font = 'italic 28px Georgia';
+      ctx.fillStyle = '#555555';
+      ctx.textAlign = 'right';
+      ctx.fillText(`- ${cardData.author}`, canvas.width - 65, canvas.height - 80);
+
+      return new THREE.CanvasTexture(canvas);
+    }
+
+    // --- LOCATIES & DATAGEDREVEN KAARSEN & BRIEFJES ---
+    // messageCount bepaalt hoe ver de kaars is afgebrand (meer berichten = kortere kaars)
+    const locationsData = [
+      {
+        id: "auschwitz",
+        name: "Auschwitz",
+        x: 3.2, z: -1.2,
+        messageCount: 520, // Veel berichten -> diep afgebrande kaars
+        cards: [
+          { id: "#A1042", text: "Rust zacht, lieve zielen. Jullie verhalen blijven levend in onze herinneringen.", author: "Sarah | 14-04-2024", pos: { x: 0.1, y: 0.62, z: 2.2 } },
+          { id: "#A1043", text: "Opdat wij nooit vergeten wat haat teweeg kan brengen.", author: "Thomas | 18-05-2024", pos: { x: 0.4, y: 0.64, z: 2.5 } },
+          { id: "#A1044", text: "Een stil gebed in het licht van herinnering.", author: "Elena | 02-09-2024", pos: { x: -0.2, y: 0.66, z: 2.4 } }
+        ]
+      },
+      {
+        id: "breendonk",
+        name: "Fort Breendonk",
+        x: -2.8, z: 1.4,
+        messageCount: 45, // Weinig berichten -> vrij nieuwe, lange kaars & slechts 1 briefje!
+        cards: [
+          { id: "#B8811", text: "Hier leefde de hoop in de donkerste uren. Nooit meer.", author: "Eva | 18-04-2024", pos: { x: 0.2, y: 0.62, z: 2.3 } }
+        ]
+      },
+      {
+        id: "annefrank",
+        name: "Anne Frank Huis",
+        x: -2.2, z: -2.2,
+        messageCount: 310,
+        cards: [
+          { id: "#AF301", text: "Ondanks alles geloof ik nog steeds in de goedheid van de mens.", author: "Daan | 05-01-2024", pos: { x: 0.1, y: 0.62, z: 2.3 } },
+          { id: "#AF302", text: "Jouw dagboek blijft onze gids naar een betere toekomst.", author: "Nora | 12-10-2024", pos: { x: 0.4, y: 0.65, z: 2.5 } }
+        ]
+      }
+    ];
+
+    const candlesOnMapGroup = new THREE.Group();
+    const mapCandleClickables = [];
+    const locationScenesGroup = new THREE.Group();
+    const allCardMeshes = [];
+
+    locationsData.forEach(loc => {
+      // Bereken kaarslengte op basis van messageCount (hoe meer berichten, hoe korter de kaars)
+      const maxMsgs = 600;
+      const normalized = Math.min(1.0, loc.messageCount / maxMsgs);
+      const candleHeight = Math.max(0.25, 1.1 - (normalized * 0.75));
+
+      // 1. Kaars op de wereldkaart
+      const candleGroup = new THREE.Group();
+      candleGroup.position.set(loc.x, 0, loc.z);
+
+      const bodyGeo = new THREE.CylinderGeometry(0.22, 0.22, candleHeight, 16);
+      const body = new THREE.Mesh(bodyGeo, waxMaterial);
+      body.position.y = candleHeight / 2;
+      candleGroup.add(body);
+
+      const flame = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.22, 12), flameMaterial);
+      flame.position.y = candleHeight + 0.12;
+      candleGroup.add(flame);
+
+      const ring = new THREE.Mesh(new THREE.RingGeometry(0.4, 0.5, 32), new THREE.MeshBasicMaterial({ color: 0xE5DFD3, side: THREE.DoubleSide, transparent: true, opacity: 0.4 }));
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.y = 0.02;
+      candleGroup.add(ring);
+
+      body.userData = { type: 'mapCandle', location: loc, ring: ring };
+      mapCandleClickables.push(body);
+      candlesOnMapGroup.add(candleGroup);
+
+      // 2. De 3D Locatie Omgeving
+      const locScene = new THREE.Group();
+      locScene.position.set(loc.x, 0, loc.z);
+      locScene.visible = false;
+      locScene.userData = { id: loc.id };
+
+      const building = new THREE.Mesh(new THREE.BoxGeometry(5.2, 2.5, 3.2), stoneMaterial);
+      building.position.set(0, 1.25, 0);
+      locScene.add(building);
+
+      const roof = new THREE.Mesh(new THREE.ConeGeometry(4.0, 1.4, 4), woodMaterial);
+      roof.position.set(0, 3.2, 0);
+      roof.rotation.y = Math.PI / 4;
+      locScene.add(roof);
+
+      const table = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.6, 1.4), woodMaterial);
+      table.position.set(0, 0.3, 2.3);
+      locScene.add(table);
+
+      // Detail kaars bij de tafels (zelfde hoogte-logica)
+      const detailBody = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.15, candleHeight, 16), waxMaterial);
+      detailBody.position.set(-0.7, 0.3 + (candleHeight / 2), 2.3);
+      locScene.add(detailBody);
+
+      const detailFlame = new THREE.Mesh(new THREE.SphereGeometry(0.07, 12, 12), flameMaterial);
+      detailFlame.position.set(-0.7, 0.3 + candleHeight + 0.05, 2.3);
+      locScene.add(detailFlame);
+
+      // Dynamisch genereren van exact het aantal kaarten dat in de data staat
+      loc.cards.forEach((cardData, index) => {
+        const cardTexture = createParchmentTexture(cardData, loc.name);
+        const cardMat = new THREE.MeshStandardMaterial({ map: cardTexture, roughness: 0.5 });
+
+        const card = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.02, 0.5), cardMat);
+        card.position.set(cardData.pos.x, cardData.pos.y + (index * 0.025), cardData.pos.z);
+        card.rotation.set(0, (index * 0.15) - 0.1, 0);
+       
+        card.userData = {
+          type: 'card',
+          data: cardData,
+          locationName: loc.name,
+          originalPos: { ...card.position },
+          originalRot: { x: card.rotation.x, y: card.rotation.y, z: card.rotation.z }
+        };
+        locScene.add(card);
+        allCardMeshes.push(card);
+      });
+
+      locationScenesGroup.add(locScene);
+    });
+
+    scene.add(candlesOnMapGroup);
+    scene.add(locationScenesGroup);
+
+    // --- RAYCASTING & INTERACTIE ---
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    let currentMode = 'map';
+    let activeCard = null;
+    let activeLocationScene = null;
+
+    window.addEventListener('click', onPointerClick);
+
+    function onPointerClick(event) {
+      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+
+      if (currentMode === 'map') {
+        const intersects = raycaster.intersectObjects(mapCandleClickables);
+        if (intersects.length > 0) {
+          goToLocation(intersects[0].object.userData.location);
+        }
+      } else if (currentMode === 'location') {
+        const intersects = raycaster.intersectObjects(allCardMeshes);
+        if (intersects.length > 0) {
+          openCard(intersects[0].object);
+        }
+      }
+    }
+
+    const backBtn = document.getElementById('back-btn');
+    const instruction = document.getElementById('instruction');
+
+    function goToLocation(loc) {
+      currentMode = 'location';
+      instruction.innerText = `2. ${loc.name}: Klik op een perkamentje om het op te pakken en te lezen.`;
+
+      candlesOnMapGroup.visible = false;
+      locationScenesGroup.children.forEach(sceneGroup => {
+        if (sceneGroup.userData.id === loc.id) {
+          sceneGroup.visible = true;
+          activeLocationScene = sceneGroup;
+        }
+      });
+
+      const targetPos = { x: loc.x, y: 2.6, z: loc.z + 5.5 };
+      const targetLookAt = { x: loc.x, y: 1.0, z: loc.z + 1.2 };
+
+      new TWEEN.Tween(camera.position).to(targetPos, 1800).easing(TWEEN.Easing.Cubic.InOut).start();
+      new TWEEN.Tween(controls.target).to(targetLookAt, 1800).easing(TWEEN.Easing.Cubic.InOut)
+        .onComplete(() => { backBtn.style.display = 'block'; })
+        .start();
+    }
+
+    function goToMap() {
+      currentMode = 'map';
+      if (activeCard) resetCard(activeCard);
+      backBtn.style.display = 'none';
+      instruction.innerText = "1. Verken de wereldkaart en selecteer een brandende kaars";
+
+      if (activeLocationScene) {
+        activeLocationScene.visible = false;
+        activeLocationScene = null;
+      }
+      candlesOnMapGroup.visible = true;
+
+      new TWEEN.Tween(camera.position).to(initialCamPos, 1800).easing(TWEEN.Easing.Cubic.InOut).start();
+      new TWEEN.Tween(controls.target).to({ x: 0, y: 0, z: 0 }, 1800).easing(TWEEN.Easing.Cubic.InOut).start();
+    }
+
+    function openCard(cardMesh) {
+      if (activeCard && activeCard !== cardMesh) resetCard(activeCard);
+      activeCard = cardMesh;
+
+      new TWEEN.Tween(cardMesh.position).to({ x: 0, y: 1.7, z: 3.4 }, 600).easing(TWEEN.Easing.Back.Out).start();
+      new TWEEN.Tween(cardMesh.rotation).to({ x: 0.45, y: 0, z: 0 }, 600).start();
+    }
+
+    function resetCard(cardMesh) {
+      if (!cardMesh) return;
+      const origPos = cardMesh.userData.originalPos;
+      const origRot = cardMesh.userData.originalRot;
+      new TWEEN.Tween(cardMesh.position).to({ x: origPos.x, y: origPos.y, z: origPos.z }, 500).start();
+      new TWEEN.Tween(cardMesh.rotation).to({ x: origRot.x, y: origRot.y, z: origRot.z }, 500).start();
+      if (activeCard === cardMesh) activeCard = null;
+    }
+
+    backBtn.addEventListener('click', goToMap);
+
+    // --- ANIMATIE LUS ---
+    function animate(time) {
+      requestAnimationFrame(animate);
+      TWEEN.update();
+      controls.update();
+
+      if (currentMode === 'map') {
+        const pulse = (Math.sin(time * 0.004) * 0.15) + 1;
+        const opacityPulse = (Math.sin(time * 0.004) * 0.2) + 0.5;
+        mapCandleClickables.forEach(item => {
+          item.userData.ring.scale.set(pulse, pulse, pulse);
+          item.userData.ring.material.opacity = opacityPulse;
+        });
+      }
+
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>
